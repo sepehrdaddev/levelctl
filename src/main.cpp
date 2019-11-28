@@ -9,7 +9,7 @@
 static void version() { std::cout << "levelctl " << VERSION << '\n'; }
 
 class database {
-  leveldb::DB *__db{};
+  leveldb::DB *db{};
   leveldb::Options options{};
   leveldb::Status status{};
 
@@ -19,42 +19,44 @@ public:
     options.write_buffer_size = 64 * 1024 * 1024;
     options.reuse_logs = true;
     options.compression = leveldb::kSnappyCompression;
-    status = leveldb::DB::Open(options, path, &__db);
+    status = leveldb::DB::Open(options, path, &db);
     status_check();
   }
 
   void put(const std::string &key, const std::string &value) {
-    status = __db->Put(leveldb::WriteOptions(), key, value);
+    status = db->Put(leveldb::WriteOptions(), key, value);
     status_check();
     std::cout << "OK\n";
   }
 
   void get(const std::string &key, std::string &value) {
-    status = __db->Get(leveldb::ReadOptions(), key, &value);
+    status = db->Get(leveldb::ReadOptions(), key, &value);
     status_check();
   }
 
   void del(const std::string &key) {
-    status = __db->Delete(leveldb::WriteOptions(), key);
+    status = db->Delete(leveldb::WriteOptions(), key);
     status_check();
     std::cout << "OK\n";
   }
 
   void dump() {
-    leveldb::Iterator *it = __db->NewIterator(leveldb::ReadOptions());
+    leveldb::Iterator *it = db->NewIterator(leveldb::ReadOptions());
 
     for (it->SeekToFirst(); it->Valid(); it->Next())
       std::cout << it->key().ToString() << ":" << it->value().ToString()
                 << '\n';
 
-    assert(it->status().ok());
+    status = it->status();
+    status_check();
+
     delete it;
   }
 
-  ~database() { delete __db; }
+  ~database() { delete db; }
 
 private:
-  void status_check() {
+  inline void status_check() {
     if (!status.ok()) {
       ERR(status.ToString());
       exit(EXIT_FAILURE);
@@ -148,7 +150,7 @@ int main(int argc, const char *argv[]) {
 
   args::ArgumentParser parser("levelctl - Manage Leveldb Databases");
 
-  args::Group commands(parser, "Available Commands");
+  args::Group commands(parser, "Available Commands:");
 
   args::Command init(commands, "init", "Initialize database in the given path",
                      &init_command);
@@ -165,7 +167,7 @@ int main(int argc, const char *argv[]) {
   args::Command dump(commands, "dump", "Dump the given database",
                      &dump_command);
 
-  args::Group flags(parser, "Flags", args::Group::Validators::DontCare,
+  args::Group flags(parser, "Flags:", args::Group::Validators::DontCare,
                     args::Options::Global);
 
   args::HelpFlag help(flags, "help", "Display this help menu", {'h', "help"});
